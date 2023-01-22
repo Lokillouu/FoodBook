@@ -172,7 +172,7 @@ void calendar::SetDate(const int& yr, const month_name mth, const uint8_t mth_da
     //If it is February 29, see if we have to reverse to 28.
     if (month == February && month_day == 29){
         if (!IsLeapYear(year)){
-            month_day == 28;
+            month_day = 28;
         }
     }
     //Calculate week day.

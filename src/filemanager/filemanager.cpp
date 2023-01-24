@@ -14,6 +14,35 @@ using namespace io_fb;
 
 #pragma region Internal Use Functions
 /**
+ * @brief Purge a vector of paths, removing them differently if they are files or folders.
+ * @param entries Vector of entries to purge.
+ * @returns Possible ErrorCodes: EC_None;
+ * @returns [OR] ErrorCodes thrown by any of these functions: SafeDeleteFolder(); SafeDeleteFile();
+**/
+ErrorCode PurgeEntries(vector<fs::path>& entries){
+    //If vector is not empty.
+    if (!entries.empty()){
+        ErrorCode ec;    
+        //Iterate every entry.
+        for (fs::path& p : entries){
+            //If it is a directory, call SafeDeleteFolder.
+            if (fs::is_directory(p)){
+                ec = SafeDeleteFolder(p);
+            }
+            //Else, it is a file, call SafeDeleteFile.
+            else {
+                ec = SafeDeleteFile(p);
+            }
+            //If there was a problem, return it.
+            if (ec != EC_None){
+                return ec;
+            }
+        }
+    }
+    //All done, return.
+    return EC_None;
+}
+/**
  * @brief Checks if a given string is valid for the chosen data type.
  * @param data Data string to process.
  * @param data_from File type data is coming from.
@@ -115,7 +144,7 @@ ErrorCode JudgeOrphanFolder(const fs::path& orphan_p){
     if (!fs::is_directory(orphan_p)){
         return EC_DirNotFound;
     }
-    string fname = orphan_p.filename();
+    string fname = orphan_p.filename().string();
     //Selection loop
     uint8_t num_input;
     do {
@@ -133,7 +162,7 @@ ErrorCode JudgeOrphanFolder(const fs::path& orphan_p){
         if (num_input == 1){
             bool temp_file = 0;
             //Validate users dat
-            fs::path usrdat = "data/users.dat";
+            fs::path usrdat = users_dat_p;
             fs::path* usrdat_tmp;
             ErrorCode ec = UsersDataCheck();
             //If users.dat is valid and not empty
@@ -153,7 +182,7 @@ ErrorCode JudgeOrphanFolder(const fs::path& orphan_p){
             }
             //Open users.dat in append mode.
             ofstream users;
-            users.open(usrdat, ios_base::openmode::_S_app);
+            users.open(usrdat, ios_base::app);
             //If open file failed, delete temp file and return error.
             if (!users.is_open()){
                 if (temp_file){
@@ -349,7 +378,7 @@ ErrorCode ValidateUserFolder(const fs::path &pth, const uint8_t mode = 0){
         //Main user folder
         case 0: {
             //Get username and current path.
-            string username = pth.filename();
+            string username = pth.filename().string();
             //Append wanted file to path
             fs::path cpth = pth;
             cpth.append(".tmp_" + username + "_foods.dat");
@@ -472,9 +501,8 @@ ErrorCode ValidateUserFolder(const fs::path &pth, const uint8_t mode = 0){
             //Main user folder
             case 0: {
                 //Get username and current path
-                string username = pth.string().substr(pth.string().find_last_of('/') + 1);
-                string c_path = entry.path().string();
-                c_path = c_path.substr(c_path.find_last_of('/') + 1);
+                string username = pth.filename().string();
+                string c_path = entry.path().filename().string();
                 //If entry is a directory
                 if (fs::is_directory(entry)){
                     //If not a year directory, delete it
@@ -497,7 +525,7 @@ ErrorCode ValidateUserFolder(const fs::path &pth, const uint8_t mode = 0){
                 }
                 //If it is a file and not user_foods.dat, purge it
                 else if (c_path != username + "_foods.dat"){
-                    to_purge.push_back(entry.path().string());
+                    to_purge.push_back(entry.path());
                 }
                 break;
             }
@@ -507,8 +535,7 @@ ErrorCode ValidateUserFolder(const fs::path &pth, const uint8_t mode = 0){
             case 2: {
                 //If entry is a folder
                 if (fs::is_directory(entry)){
-                    string c_path = entry.path().string();
-                    c_path = c_path.substr(c_path.find_last_of('/') + 1);
+                    string c_path = entry.path().filename().string();
                     //If folder is numeric and not empty
                     if (strings::IsNumericStr(c_path, Mode_UInt8) && !fs::is_empty(entry)){
                         bool validate = 0;
@@ -524,8 +551,7 @@ ErrorCode ValidateUserFolder(const fs::path &pth, const uint8_t mode = 0){
                                 //Get folder month
                                 date::month_name month = static_cast<date::month_name>(stoi(c_path));
                                 //Get folder year
-                                string year_str = entry.path().parent_path();
-                                year_str = year_str.substr(year_str.find_last_of('/') + 1);
+                                string year_str = entry.path().parent_path().filename().string();
                                 int year = stoi(year_str);
                                 validate = (stoi(c_path) <= date::GetMonthLength(month, year) && stoi(c_path) > 0);
                                 break;
@@ -578,13 +604,9 @@ ErrorCode ValidateUserFolder(const fs::path &pth, const uint8_t mode = 0){
         }
     }
     //If something to purge, do it
-    if (!to_purge.empty()){
-        for (fs::path& p : to_purge){
-            ec = SafeDeleteFolder(p);
-            if (ec != EC_None){
-                return ec;
-            }
-        }
+    ec = PurgeEntries(to_purge);
+    if (ec != EC_None){
+        return ec;
     }
     //If original path is now empty, return it
     if (fs::is_empty(pth)){
@@ -613,7 +635,7 @@ ErrorCode ValidateUsrFolder(vector<fs::path>* orphan_folders = NULL){
     vector<fs::path> to_purge;
     //Gather "illegal" entries in usr folder.
     for (const auto &p : fs::directory_iterator(usr_f)){
-        string cpath_name = p.path().filename();
+        string cpath_name = p.path().filename().string();
         //If a directory with a valid name and not empty, validate it
         if (fs::is_directory(p) && name::IsValidName(cpath_name,1) && !fs::is_empty(p)){
             ErrorCode ec = ValidateUserFolder(p,0);
@@ -656,11 +678,9 @@ ErrorCode ValidateUsrFolder(vector<fs::path>* orphan_folders = NULL){
         }
     }
     //Remove "illegal" entries.
-    for (fs::path &p : to_purge){
-        ErrorCode ec = SafeDeleteFolder(p);
-        if (ec != EC_None){
-            return ec;
-        }
+    ErrorCode ec = PurgeEntries(to_purge);
+    if (ec != EC_None){
+        return ec;
     }
     return EC_None;
 }
@@ -742,21 +762,17 @@ ErrorCode ValidateDataFolder(){
         }
     }
     //Purge data folder
-    vector<string> to_purge;
+    vector<fs::path> to_purge;
     //Gather "illegal" entries in data folder.
     for (const auto &p : fs::directory_iterator(data_f)){
-        string cpath = p.path().string();
-        cpath = cpath.substr(cpath.find_last_of('/') + 1);
-        if (cpath != "usr" && cpath != "users.dat"){
+        if (p.path().filename() != "usr" && p.path().filename() != "users.dat"){
             to_purge.push_back(p.path().string());
         }
     }
     //Remove "illegal" entries.
-    for (string &p : to_purge){
-        ErrorCode ec = SafeDeleteFolder(p);
-        if (ec != EC_None){
-            return ec;
-        }
+    ErrorCode ec = PurgeEntries(to_purge);
+    if (ec != EC_None){
+        return ec;
     }
     return EC_None;
 }

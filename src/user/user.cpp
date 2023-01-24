@@ -2,6 +2,7 @@
 #include <fstream>
 #include <chrono>
 using namespace std::chrono;
+#include <algorithm>
 #include "user.h"
 #include "../food/food.h"
 #include "../filemanager/filemanager.h"
@@ -901,7 +902,7 @@ using namespace std::chrono;
                 //If entry is a non empty folder
                 if (filesystem::is_directory(entry.path()) && !filesystem::is_empty(entry.path())){
                     //Get folder name
-                    string tmp_dir = entry.path().filename();
+                    string tmp_dir = entry.path().filename().string();
                     switch (mode){
                         //If looking for a year folder.                        
                         case 1: {
@@ -976,11 +977,11 @@ using namespace std::chrono;
             }
             //Else if selecting years, sort vector in descending order
             else if (mode == 1){
-                sort(entries.begin(),entries.end(),greater<int>());
+                std::sort(entries.begin(),entries.end(),greater<int>());
             }
             //If selecting months or days, sort vector in ascending order
             else {
-                sort(entries.begin(),entries.end());
+                std::sort(entries.begin(),entries.end());
             }
             //Print macros
             switch(mode){

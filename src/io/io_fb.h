@@ -4,7 +4,7 @@ using namespace std;
 
 #pragma region Macros
     //Set LINUX to false (or 0) for Windows use.
-    #define LINUX true
+    #define LINUX false
     #if LINUX
     #define ClearConsole system("clear") //Clear console for Linux.
     #else
